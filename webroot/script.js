@@ -263,7 +263,7 @@ class StellarEngine {
                 this.isNative165Device = true;
                 this.nativeMaxFps = 165;
             }
-            else if (model.match(/^PLC110$/)) {
+            else if (model.match(/^(PLC110|RMX3706)$/)) {
                 this.isNative165Device = true;
                 this.nativeMaxFps = 144;
 }
