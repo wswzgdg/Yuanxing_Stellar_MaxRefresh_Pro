@@ -114,8 +114,8 @@ fi
 cat > "$MODPATH/module.prop" <<PROP
 id=Yuanxing_Stellar_LTPO
 name=星驰引擎_禁用LTPO
-version=v2.5
-versionCode=25
+version=v2.6
+versionCode=26
 author=酷安@穆远星
 description=为${MARKET_NAME}(${DEVICE_MODEL})提供禁用LTPO。监测到刷新率: ${RATES}。首次刷入并重启设备后，请选择所需的全局刷新率档位。后续设备每次重启，系统启动完成后将自动切换至此前选定的全局刷新率档位。进入应用配置页面，填写目标应用包名及刷新率档位映射表中的对应ID，即可为指定应用单独配置专属刷新率，实时生效。
 updateJson=https://raw.githubusercontent.com/MuYuanXing/Yuanxing_Stellar_LTPO/main/update.json
