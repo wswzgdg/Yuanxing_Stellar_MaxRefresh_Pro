@@ -1,6 +1,7 @@
 class StellarEngine {
     constructor() {
-        this.modDir = '/data/adb/modules/Yuanxing_Stellar_LTPO';
+        this.modDir = '/data/adb/modules/Yuanxing_Stellar_MaxRefresh_Pro';
+        this.persistentDir = '/data/adb/Yuanxing_Stellar_MaxRefresh_Pro_data';
         this.configFile = `${this.modDir}/saved_config`;
         this.appsFile = `${this.modDir}/apps.conf`;
         this.ratesCache = `${this.modDir}/rates_cache`;
@@ -217,16 +218,8 @@ class StellarEngine {
             this.base120Id = this.rateMap[0].id;
         }
 
-        const rates = [...new Set(this.rateMap.map(r => r.fps))].sort((a, b) => a - b);
-        document.getElementById('supported-rates').textContent = rates.length > 0 ? rates.join(', ') + 'Hz' : 'Hz';
-
-        const infoVal = document.getElementById('supported-rates');
-        if (infoVal && !infoVal.parentNode.nextElementSibling?.classList.contains('info-note')) {
-            const note = document.createElement('div');
-            note.className = 'info-note';
-            note.textContent = '注意：初次配置请务必执行全量扫描，确保所有档位被激活。';
-            infoVal.parentNode.parentNode.insertBefore(note, infoVal.parentNode.nextSibling);
-        }
+        const ratesStr = this.rateMap.map(r => `${r.fps}Hz`).join(' / ');
+        document.getElementById('supported-rates').textContent = ratesStr || '未知';
 
         this.renderRateSelector();
         this.renderIdMap();
@@ -235,15 +228,16 @@ class StellarEngine {
     async loadDeviceInfo() {
         try {
             const model = await this.exec('/system/bin/getprop ro.product.model');
-            const market = await this.exec('/system/bin/getprop ro.vendor.oplus.market.name');
+            const marketName = await this.exec('/system/bin/getprop ro.vendor.oplus.market.name') || 
+                              await this.exec('/system/bin/getprop ro.product.market.name') || model;
             const android = await this.exec('/system/bin/getprop ro.build.version.release');
             const kernel = await this.exec('/system/bin/uname -r');
             const battery = await this.exec('/system/bin/cat /sys/class/power_supply/battery/capacity');
             const temp = await this.exec('/system/bin/cat /sys/class/power_supply/battery/temp');
 
             document.getElementById('device-model').textContent = model || '未知';
-            document.getElementById('market-name').textContent = market || model || '未知';
-            document.getElementById('android-ver').textContent = android ? `Android ${android}` : 'Android';
+            document.getElementById('market-name').textContent = marketName || '未知';
+            document.getElementById('android-ver').textContent = android ? `Android ${android}` : '未知';
             document.getElementById('kernel-ver').textContent = kernel || '未知';
             document.getElementById('battery-level').textContent = battery ? `${battery}%` : '未知';
 
@@ -266,7 +260,7 @@ class StellarEngine {
             else if (model.match(/^(PLC110|RMX3706)$/)) {
                 this.isNative165Device = true;
                 this.nativeMaxFps = 144;
-}
+            }
 
         } catch (e) {
             console.error('loadDeviceInfo error:', e);
@@ -282,9 +276,10 @@ class StellarEngine {
             </div>
         `).join('');
 
-        container.querySelectorAll('.rate-item').forEach(el => {
+        const rateItems = container.querySelectorAll('.rate-item');
+        rateItems.forEach(el => {
             el.addEventListener('click', (e) => {
-                container.querySelectorAll('.rate-item').forEach(r => r.classList.remove('active'));
+                rateItems.forEach(r => r.classList.remove('active'));
                 e.currentTarget.classList.add('active');
                 this.selectedRate = {
                     id: parseInt(e.currentTarget.dataset.id),
@@ -304,6 +299,12 @@ class StellarEngine {
         `).join('');
     }
 
+    async syncConfigToPersistent() {
+        await this.exec(`/system/bin/mkdir -p ${this.persistentDir}`);
+        await this.exec(`/system/bin/cp -af ${this.configFile} ${this.persistentDir}/saved_config 2>/dev/null`);
+        await this.exec(`/system/bin/cp -af ${this.appsFile} ${this.persistentDir}/apps.conf 2>/dev/null`);
+    }
+
     async saveRateConfig() {
         if (!this.selectedRate) {
             this.showToast('请选择刷新率');
@@ -313,6 +314,7 @@ class StellarEngine {
         const { id: targetId, fps: targetFps } = this.selectedRate;
         
         await this.exec(`/system/bin/echo "${targetId}" > ${this.configFile}`);
+        await this.syncConfigToPersistent();
 
         const currentId = this.currentId || this.base120Id || 1;
         const currentItem = this.rateMap.find(r => r.id === currentId);
@@ -393,6 +395,7 @@ class StellarEngine {
 # ==========================================`;
         const content = header + '\n' + this.appConfigs.map(c => `${c.pkg}=${c.id}`).join('\n');
         await this.exec(`/system/bin/echo '${content}' > ${this.appsFile}`);
+        await this.syncConfigToPersistent();
     }
 
     showInputModal() {
