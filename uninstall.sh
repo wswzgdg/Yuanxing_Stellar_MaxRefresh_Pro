@@ -12,8 +12,3 @@ settings delete system min_refresh_rate
 settings delete system user_refresh_rate
 settings delete secure refresh_rate_mode
 settings delete system oplus_customize_multi_mode_freq
-
-rm -f /data/local/tmp/display_modes.txt
-rm -f /data/local/tmp/menu_map.txt
-rm -f /data/local/tmp/display_mode_map.txt
-rm -f /data/local/tmp/display_oc_modes.txt

@@ -3,17 +3,9 @@ MODDIR=${0%/*}
 CONFIG_FILE="$MODDIR/saved_config"
 APPS_FILE="$MODDIR/apps.conf"
 RATES_CACHE="$MODDIR/rates_cache"
-
-CURRENT_ID=""
-CURRENT_TYPE=""
-SAVED_ID=""
-SAVED_FPS=""
-BASE_120_ID=""
-BASE_165_ID=""
-MAX_ID=""
+PERSISTENT_DIR="/data/adb/Yuanxing_Stellar_MaxRefresh_Pro_data"
 
 config_mtime=0
-apps_mtime=0
 SCREEN_STATE="on"
 LAST_SCREEN_STATE="on"
 
@@ -119,6 +111,12 @@ need_ramp_switch() {
     return 1
 }
 
+sync_config_to_persistent() {
+    mkdir -p "$PERSISTENT_DIR"
+    [ -f "$CONFIG_FILE" ] && cp -af "$CONFIG_FILE" "$PERSISTENT_DIR/saved_config"
+    [ -f "$APPS_FILE" ] && cp -af "$APPS_FILE" "$PERSISTENT_DIR/apps.conf"
+}
+
 apply_logic() {
     local target=$1
     local type=$2
@@ -184,13 +182,10 @@ detect_device_model
 init_rates
 
 if [ -f "$CONFIG_FILE" ]; then
-    SAVED_ID=$(cat "$CONFIG_FILE" 2>/dev/null | awk '{print $1}' | tr -d ' \n')
-    SAVED_FPS=$(cat "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | tr -d ' \n')
+    read SAVED_ID SAVED_FPS _ < "$CONFIG_FILE" 2>/dev/null
+    SAVED_ID=$(echo "$SAVED_ID" | tr -d ' \n')
+    SAVED_FPS=$(echo "$SAVED_FPS" | tr -d ' \n')
     config_mtime=$(stat -c %Y "$CONFIG_FILE" 2>/dev/null)
-fi
-
-if [ -f "$APPS_FILE" ]; then
-    apps_mtime=$(stat -c %Y "$APPS_FILE" 2>/dev/null)
 fi
 
 if [ -n "$SAVED_ID" ]; then
@@ -222,16 +217,11 @@ while true; do
     if [ -f "$CONFIG_FILE" ]; then
         current_config_mtime=$(stat -c %Y "$CONFIG_FILE" 2>/dev/null)
         if [ "$current_config_mtime" != "$config_mtime" ]; then
-            SAVED_ID=$(cat "$CONFIG_FILE" 2>/dev/null | awk '{print $1}' | tr -d ' \n')
-            SAVED_FPS=$(cat "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | tr -d ' \n')
+            read SAVED_ID SAVED_FPS _ < "$CONFIG_FILE" 2>/dev/null
+            SAVED_ID=$(echo "$SAVED_ID" | tr -d ' \n')
+            SAVED_FPS=$(echo "$SAVED_FPS" | tr -d ' \n')
             config_mtime="$current_config_mtime"
-        fi
-    fi
-    
-    if [ -f "$APPS_FILE" ]; then
-        current_apps_mtime=$(stat -c %Y "$APPS_FILE" 2>/dev/null)
-        if [ "$current_apps_mtime" != "$apps_mtime" ]; then
-            apps_mtime="$current_apps_mtime"
+            sync_config_to_persistent
         fi
     fi
     
