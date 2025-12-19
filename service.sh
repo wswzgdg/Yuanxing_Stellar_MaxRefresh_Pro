@@ -28,7 +28,7 @@ detect_device_model() {
             IS_NATIVE_165_DEVICE=1
             NATIVE_MAX_FPS=165
             ;;
-        PLC110|RMX3706)
+        PLC110|RMX3706|RMX5200)
             IS_NATIVE_165_DEVICE=1
             NATIVE_MAX_FPS=144
             ;;
