@@ -14,6 +14,34 @@ set_perm "$MODPATH/uninstall.sh" 0 0 0755
 mod_name=$(grep -E '^name=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 mod_ver=$(grep -E '^version=' "$MODPATH/module.prop" | cut -d'=' -f2-)
 
+old_moddir="/data/adb/modules/Yuanxing_Stellar_MaxRefresh_Pro"
+if [ -f "$old_moddir/module.prop" ]; then
+    old_vc=$(grep -E '^versionCode=' "$old_moddir/module.prop" | cut -d'=' -f2-)
+    old_ver=$(grep -E '^version=' "$old_moddir/module.prop" | cut -d'=' -f2-)
+    if [ -n "$old_vc" ] && [ "$old_vc" -lt 45 ] 2>/dev/null; then
+        ui_print " "
+        ui_print "============================================="
+        ui_print " "
+        ui_print "  ❌ 检测到旧版本 $old_ver (versionCode=$old_vc)"
+        ui_print " "
+        ui_print "  V4.5 不支持从旧版本直接覆盖安装！"
+        ui_print "  请按以下步骤操作："
+        ui_print " "
+        ui_print "  1) 进入以下路径执行使用 Root 权限执行卸载脚本："
+        ui_print "     $old_moddir/uninstall.sh"
+        ui_print " "
+        ui_print "  2) 在 Root 管理器中删除该模块"
+        ui_print " "
+        ui_print "  3) 重启手机"
+        ui_print " "
+        ui_print "  4) 重启后再重新刷入 V4.5"
+        ui_print " "
+        ui_print "============================================="
+        ui_print " "
+        abort "请先卸载旧版本再安装 V4.5"
+    fi
+fi
+
 ui_print "============================================="
 ui_print " $mod_name $mod_ver"
 ui_print " 作者: 酷安@穆远星"
@@ -40,10 +68,10 @@ ui_print "- 正在监测设备品牌..."
 
 ok=0
 echo "$brand" | grep -qiE "oneplus|oppo|realme|oplus" && ok=1
-[ $ok -eq 0 ] && echo "$mfr" | grep -qiE "oneplus|oppo|realme|oplus" && ok=1
-[ $ok -eq 0 ] && echo "$model" | grep -qiE "^PHK|^PH[A-Z]|^CPH|^RMX|^PJ[A-Z]|^PL[A-Z]|^OPD" && ok=1
+[ "$ok" -eq 0 ] && echo "$mfr" | grep -qiE "oneplus|oppo|realme|oplus" && ok=1
+[ "$ok" -eq 0 ] && echo "$model" | grep -qiE "^PHK|^PH[A-Z]|^CPH|^RMX|^PJ[A-Z]|^PL[A-Z]|^OPD" && ok=1
 
-if [ $ok -eq 0 ]; then
+if [ "$ok" -eq 0 ]; then
     ui_print " "
     ui_print "❌ 设备品牌监测失败!"
     ui_print "---------------------------------------------"

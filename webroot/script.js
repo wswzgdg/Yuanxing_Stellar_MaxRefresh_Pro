@@ -33,7 +33,7 @@ class StellarEngine {
         const s = v.trim();
         if (!s) return null;
         if ((s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'))) {
-            try { return JSON.parse(s); } catch (e) {}
+            try { return JSON.parse(s); } catch (e) { console.warn(e); }
         }
         return { id: s };
     }
@@ -54,7 +54,7 @@ class StellarEngine {
                 this.pdir = `/data/adb/${moduleId}_data`;
                 if (!moduleDir) this.mod = `/data/adb/modules/${moduleId}`;
             }
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
     }
 
     escapeHtml(s) {
@@ -94,10 +94,10 @@ class StellarEngine {
                 }
                 return btoa(binary);
             }
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
         try {
             return btoa(unescape(encodeURIComponent(v)));
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
         return btoa(v);
     }
 
@@ -128,7 +128,7 @@ class StellarEngine {
             const finish = (res) => {
                 if (done) return;
                 done = true;
-                try { delete window[cb]; } catch (e) {}
+                try { delete window[cb]; } catch (e) { /* ignore */ }
                 resolve(res);
             };
             const tm = setTimeout(() => {
@@ -257,13 +257,25 @@ class StellarEngine {
 
     async loadDev() {
         try {
-            const m = await this.execOut('/system/bin/getprop ro.product.model');
-            let mk = await this.execOut('/system/bin/getprop ro.vendor.oplus.market.name');
-            if (!mk) mk = await this.execOut('/system/bin/getprop ro.product.market.name');
-            const av = await this.execOut('/system/bin/getprop ro.build.version.release');
-            const kv = await this.execOut('/system/bin/uname -r');
-            const bl = await this.execOut('/system/bin/cat /sys/class/power_supply/battery/capacity');
-            const bt = await this.execOut('/system/bin/cat /sys/class/power_supply/battery/temp');
+            const raw = await this.execOut(
+                '/system/bin/sh -c \'' +
+                'echo "$(/system/bin/getprop ro.product.model)";' +
+                'mk=$(/system/bin/getprop ro.vendor.oplus.market.name);' +
+                '[ -z "$mk" ] && mk=$(/system/bin/getprop ro.product.market.name);' +
+                'echo "$mk";' +
+                'echo "$(/system/bin/getprop ro.build.version.release)";' +
+                '/system/bin/uname -r;' +
+                'cat /sys/class/power_supply/battery/capacity 2>/dev/null;' +
+                'cat /sys/class/power_supply/battery/temp 2>/dev/null' +
+                '\''
+            );
+            const lines = (raw || '').split('\n');
+            const m = (lines[0] || '').trim();
+            const mk = (lines[1] || '').trim();
+            const av = (lines[2] || '').trim();
+            const kv = (lines[3] || '').trim();
+            const bl = (lines[4] || '').trim();
+            const bt = (lines[5] || '').trim();
 
             document.getElementById('device-model').textContent = m || '未知';
             document.getElementById('market-name').textContent = mk || m || '未知';
@@ -271,7 +283,7 @@ class StellarEngine {
             document.getElementById('kernel-ver').textContent = kv || '未知';
             document.getElementById('battery-level').textContent = bl ? `${bl}%` : '未知';
             document.getElementById('battery-temp').textContent = bt ? `${(parseInt(bt) / 10).toFixed(1)}°C` : '未知';
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
     }
 
     async loadConf() {
@@ -283,7 +295,7 @@ class StellarEngine {
                 if (p.appSwitchEnabled !== undefined) this.conf.appSw = p.appSwitchEnabled;
                 if (p.appSwitchInterval !== undefined) this.conf.appIntv = p.appSwitchInterval;
             }
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
     }
 
     async loadRates() {
@@ -301,7 +313,7 @@ class StellarEngine {
                     });
                 }
             });
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
     }
 
     async scan() {
@@ -368,15 +380,9 @@ class StellarEngine {
         return n ? n.id : 1;
     }
 
-    ocUp(res, to) {
-        return this.rates.filter(r => `${r.w}x${r.h}` === res && r.type === 'overclock' && r.ord > 0 && r.ord <= to)
-            .sort((a, b) => a.ord - b.ord).map(r => r.id);
-    }
+    ocUp(res, to) { return this.ocRange(res, 0, to); }
 
-    ocDown(res, from) {
-        return this.rates.filter(r => `${r.w}x${r.h}` === res && r.type === 'overclock' && r.ord > 0 && r.ord < from)
-            .sort((a, b) => b.ord - a.ord).map(r => r.id);
-    }
+    ocDown(res, from) { return this.ocRange(res, from, 0); }
 
     ocRange(res, from, to) {
         if (from < to) {
@@ -435,7 +441,7 @@ class StellarEngine {
                 const [p, i] = l.split('=');
                 return { pkg: p.trim(), id: i.trim() };
             }).filter(x => x.pkg && x.id);
-        } catch (e) {}
+        } catch (e) { console.warn(e); }
     }
 
     async saveApps() {
@@ -446,10 +452,9 @@ class StellarEngine {
     }
 
     async sync() {
-        await this.execOut(`/system/bin/mkdir -p ${this.shQuote(this.pdir)}`, 8000);
-        await this.execOut(`/system/bin/cp -af ${this.shQuote(`${this.mod}/config.json`)} ${this.shQuote(`${this.pdir}/config.json`)} 2>/dev/null`, 8000);
-        await this.execOut(`/system/bin/cp -af ${this.shQuote(`${this.mod}/apps.conf`)} ${this.shQuote(`${this.pdir}/apps.conf`)} 2>/dev/null`, 8000);
-        await this.execOut(`/system/bin/cp -af ${this.shQuote(`${this.mod}/rates.conf`)} ${this.shQuote(`${this.pdir}/rates.conf`)} 2>/dev/null`, 8000);
+        const p = this.shQuote(this.pdir);
+        const m = this.shQuote(this.mod);
+        await this.execOut(`/system/bin/mkdir -p ${p} && /system/bin/cp -af ${m}/config.json ${m}/apps.conf ${m}/rates.conf ${p}/ 2>/dev/null`, 8000);
     }
 
     render() {
@@ -604,7 +609,7 @@ class StellarEngine {
         t.classList.remove('hidden');
         t.style.justifyContent = (p === 'home' || p === 'settings' || p === 'apps') ? 'flex-start' : 'center';
         document.querySelectorAll('.tab-item').forEach(x => x.classList.remove('active'));
-        document.querySelector(`.tab-item[data-page="${p}"]`).classList.add('active');
+        document.querySelector(`.tab-item[data-page="${p}"]`)?.classList.add('active');
     }
 
     showInput() {

@@ -43,6 +43,11 @@ is_num() {
     esac
 }
 
+widen_rates() {
+    settings put system peak_refresh_rate 240.0 2>/dev/null
+    settings put system min_refresh_rate 10.0 2>/dev/null
+}
+
 load_cfg() {
     [ ! -f "$cfg" ] && return
     local v=$(jnum "globalRateId" "$cfg")
@@ -121,6 +126,18 @@ oc_down() {
     awk -F: -v w="$w" -v h="$h" -v f="$from" '$2==w && $3==h && $5=="overclock" && $7>0 && $7<f {print $7":"$1}' "$rates" 2>/dev/null | sort -t: -k1 -rn | cut -d: -f2
 }
 
+oc_step_down() {
+    local res="$1"
+    local from_ord="$2"
+    for i in $(oc_down "$res" "$from_ord"); do
+        usleep 50000
+        service call SurfaceFlinger 1035 i32 "$i" >/dev/null 2>&1
+    done
+    usleep 50000
+    local base=$(native_base "$res")
+    is_num "$base" && service call SurfaceFlinger 1035 i32 "$base" >/dev/null 2>&1
+}
+
 has_apps() {
     [ ! -f "$apps" ] && echo 0 && return
     local c=$(grep -c '=' "$apps" 2>/dev/null)
@@ -132,8 +149,7 @@ apply() {
     is_num "$tid" || return 1
     [ "$tid" = "$cur_id" ] && return 0
 
-    settings put system peak_refresh_rate 240.0 2>/dev/null
-    settings put system min_refresh_rate 10.0 2>/dev/null
+    widen_rates
 
     local tt=$(rate_type "$tid")
     local tr=$(rate_res "$tid")
@@ -144,13 +160,7 @@ apply() {
 
     if [ -z "$tt" ] || [ "$tt" = "native" ] || [ "$tt" = "unknown" ]; then
         if [ "$ct" = "overclock" ] && [ -n "$cur_id" ]; then
-            for i in $(oc_down "$cr" "$co"); do
-                usleep 50000
-                service call SurfaceFlinger 1035 i32 "$i" >/dev/null 2>&1
-            done
-            usleep 50000
-            local base=$(native_base "$cr")
-            is_num "$base" && service call SurfaceFlinger 1035 i32 "$base" >/dev/null 2>&1
+            oc_step_down "$cr" "$co"
         fi
         usleep 50000
         service call SurfaceFlinger 1035 i32 "$tid" >/dev/null 2>&1
@@ -167,13 +177,7 @@ apply() {
             done
         else
             if [ "$ct" = "overclock" ] && [ -n "$cur_id" ]; then
-                for i in $(oc_down "$cr" "$co"); do
-                    usleep 50000
-                    service call SurfaceFlinger 1035 i32 "$i" >/dev/null 2>&1
-                done
-                usleep 50000
-                local base=$(native_base "$cr")
-                is_num "$base" && service call SurfaceFlinger 1035 i32 "$base" >/dev/null 2>&1
+                oc_step_down "$cr" "$co"
             fi
             usleep 50000
             service call SurfaceFlinger 1035 i32 "$tn" >/dev/null 2>&1
@@ -225,7 +229,7 @@ check_files() {
     local chg=0
     if [ -f "$cfg" ]; then
         local mt=$(stat -c %Y "$cfg" 2>/dev/null)
-        [ "$mt" != "$cfg_mt" ] && { load_cfg; cfg_mt="$mt"; chg=1; }
+        [ "$mt" != "$cfg_mt" ] && { load_cfg; cfg_mt="$mt"; chg=1; cur_id=""; }
     fi
     if [ -f "$apps" ]; then
         local mt=$(stat -c %Y "$apps" 2>/dev/null)
@@ -239,18 +243,25 @@ check_files() {
 }
 
 on_wake() {
-    [ -z "$saved_id" ] && return
+    if [ -z "$saved_id" ]; then
+        cur_id=""
+        last_app="__WAKEUP__"
+        return
+    fi
 
     local tt=$(rate_type "$saved_id")
 
     if [ -z "$tt" ] || [ "$tt" = "native" ]; then
+        widen_rates
+        service call SurfaceFlinger 1035 i32 "$saved_id" >/dev/null 2>&1
+        cur_id="$saved_id"
+        last_app="__WAKEUP__"
         return
     fi
 
     last_app="__WAKEUP__"
 
-    settings put system peak_refresh_rate 240.0 2>/dev/null
-    settings put system min_refresh_rate 10.0 2>/dev/null
+    widen_rates
 
     local tr=$(rate_res "$saved_id")
     local to=$(rate_ord "$saved_id")
